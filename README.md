@@ -38,9 +38,7 @@ php artisan vendor:publish --provider="ScoutEngines\Elasticsearch\ElasticsearchP
 ```
 
 ### Setting up Elasticsearch configuration
-You must have a Elasticsearch server up and running with the index you want to use created
-
-If you need help with this please refer to the [Elasticsearch documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html)
+You must have a Elasticsearch server up and running, indices can be created with an Artisan command; see below.
 
 After you've published the Laravel Scout package configuration:
 
@@ -54,11 +52,11 @@ After you've published the Laravel Scout package configuration:
 
 ### Creating Elasticsearch indexes with proper mapping
 
-You may define custom mappings for Elasticserch fields in the config. The config has examples.
-If you prefer storing mappings in models, you may create a static public method `mapping()` in each particular model :
+You may define custom mappings for Elasticsearch fields in the config. See examples in the [config file](config/elasticsearch.php).
+If you prefer storing mappings in models, you may create a static public method `mapping()` in each particular model:
 
-```
-class Property extends Model
+```php
+class Article extends Model
 {
     // ...
     public static function mapping() {
@@ -71,8 +69,8 @@ class Property extends Model
     // ...
 }
 ```
-And then use it from the config:
-```
+And then use it in the config file:
+```php
  'indices' => [
 
     'realestate' => [
@@ -81,28 +79,29 @@ And then use it from the config:
             "number_of_replicas" => 0,
         ],
         'mappings' => [
-            'properties' => \App\Property::mapping(),
+            'articles' => \App\Article::mapping(),
         ],
     ],
  ]
-
 ```
+The document type, in this example `articles` must match `searchableAs()` for the respective model.
+
 Elasticsearch can set default types to model fields on the first insert if you do not explicitly define them. 
-However, sometimes the defaults are not what you're looking for.
+However; sometimes the defaults are not what you're looking for, or you need to define additional mapping properties.
 
-In that case, we strongly recommend creating indexes with proper mappings before inserting any data.
-For that purpose, there is an Artisan's command, called `elastic:make-index {index?}` which creates indexes based on
-your config.
+In that case, we strongly recommend creating indices with proper mappings before inserting any data.
+For that purpose, there is an Artisan command, called `elastic:make-indices {index}` which creates an index based on
+the settings in your configuration file.
 
-To create all indexes from your config just ignore the `{index?}` parameter and run:
+To create all indices from your config just ignore the `{index}` parameter and run:
 
 ```
-php artisan elastic:make-index
+php artisan elastic:make-indices
 ```
 
-Please note: this command will remove all existing indexes with the same names.
+If the index exists you will be asked if you want to delete and recreate it, or you can use the `--force` flag.
 
-To get information about your existing Elasticsearch indexes you may want to use the following command:
+To get information about your existing Elasticsearch indices you may want to use the following command:
 
 ```
 php artisan elastic:indices
@@ -116,10 +115,23 @@ to index your data.
 ### Search
 
 The package supports everything that is provided by Laravel Scout.
+
+The Scout `search` method used the default query method defined in the config file.
+
+Sorting with `orderBy()` method:
+
+```php
+$articles = Article::search($keywords)
+            ->orderBy('id', 'desc')
+            ->get();
+```
+
+#### Elastic specific
+
 However, to use the extra Elasticsearch features included in this package, use trait `ElasticSearchable` 
 by adding it to your model instead of `Searchable`:
 
-```
+```php
 class Article extends Model
 {
     // use Searchable;
@@ -130,42 +142,32 @@ class Article extends Model
 
 The package features:
  
-1) The `elasticSearch` method:
+1) The `elasticSearch` method, `elasticSearch($method, $query, array $params = null)`:
 
-```
+```php
 $articles = Article::elasticSearch('multi_match', $q, [
     'fields' => ['title', 'content', 'tags'],
     'fuzziness' => 'auto',
     'prefix_length' => 2,
     'operator' => 'AND'
-])
-    ->where('is_published', true)
-    ->get();
+])->get();
 ```
 
-You may find and adjust default query type and options for each query type in config (Queries section).
+Parameters are taken from the configuration, for the specific query method, if not supplied. But you may override them.
 
-2) Sorting with `orderBy()` method:
+2) A separate Elasticsearch index for each model.
 
-```
-$articles = Article::search($keywords)
-            ->orderBy('id', 'desc')
-            ->get();
-```
-
-3) A separate Elasticsearch index for each model.
-
-If you have defined several indexes in your config (config/elasticsearch.php), 
+If you have defined several indices in your [config file](config/elasticsearch.php), 
 you may choose which index a model belongs to by overriding `searchableWithin()` method in your model:
 
-```
+```php
 public function searchableWithin()
 {
     return 'foobar';
 }
 ```
 
-Please note: if you do not override `searchableWithin()` in your model, the first index from the config will be used.
+If you do not override `searchableWithin()` in your model, the first index from the config will be used.
 
 ## Credits
 
